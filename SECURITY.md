@@ -8,7 +8,7 @@ This repository implements an automated DevSecOps pipeline for a containerized F
 | :--- | :--- | :--- |
 | Hardcoded API keys, tokens, and credentials | **Gitleaks** (Secret Scanning) | Fail pipeline on any detected secret |
 | Injection, insecure code patterns, misconfigurations | **Semgrep** (SAST) | Fail pipeline on High / `ERROR` findings |
-| Vulnerable OS packages & Python libraries in image | **Trivy** (Container & SCA Scan) | Fail pipeline on `CRITICAL` / `HIGH` CVEs |
+| Vulnerable OS packages & Python libraries in image | **Trivy** (Container & SCA Scan) | Fail pipeline on fixable `CRITICAL` / `HIGH` CVEs (`--ignore-unfixed`) |
 | Container root privilege escalation | Non-root `appuser` in `Dockerfile` | Enforced in container image definition |
 
 ## Reporting a Vulnerability
