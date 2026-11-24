@@ -114,17 +114,22 @@ def generate_ai_summary(findings: list[dict], api_key: str) -> str:
         f"Findings JSON:\n{json.dumps(compact, indent=2)}"
     )
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
+    last_err = None
 
-    try:
-        resp = httpx.post(url, json=payload, timeout=30.0)
-        resp.raise_for_status()
-        data = resp.json()
-        return data["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as exc:
-        fallback = build_fallback_markdown(findings)
-        return f"{fallback}\n\n> *AI API fallback triggered ({exc.__class__.__name__}); generated deterministic triage table.*"
+    for model in ("gemini-3.5-flash-lite", "gemini-3.8-flash"):
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        try:
+            resp = httpx.post(url, headers=headers, json=payload, timeout=30.0)
+            resp.raise_for_status()
+            data = resp.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except Exception as exc:
+            last_err = exc
+
+    fallback = build_fallback_markdown(findings)
+    return f"{fallback}\n\n> *AI API fallback triggered ({last_err.__class__.__name__}); generated deterministic triage table.*"
 
 
 def main():
