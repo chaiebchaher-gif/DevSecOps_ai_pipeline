@@ -1,0 +1,66 @@
+name: DevSecOps Security Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  test-and-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run Unit Tests (Pytest)
+        run: |
+          pip install -r app/requirements.txt pytest httpx
+          python -m pytest -v
+
+      - name: Secret Scan (Gitleaks)
+        run: |
+          docker run --rm -v "$PWD:/src" ghcr.io/gitleaks/gitleaks:latest \
+            detect --source="/src" --report-format="json" --report-path="/src/gitleaks-report.json" --verbose
+
+      - name: SAST Code Scan (Semgrep)
+        run: |
+          docker run --rm -v "$PWD:/src" semgrep/semgrep \
+            semgrep scan --config=p/python --config=p/security-audit --metrics=off \
+            --json --output=/src/semgrep-report.json --error /src
+
+      - name: Build Docker Image
+        run: docker build -t devsecops-demo:${{ github.sha }} .
+
+      - name: Container Vulnerability Scan (Trivy)
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/src" \
+            aquasec/trivy:latest image \
+            --format json --output /src/trivy-report.json \
+            --severity CRITICAL,HIGH --exit-code 1 \
+            devsecops-demo:${{ github.sha }}
+
+      - name: Upload Security JSON Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            gitleaks-report.json
+            semgrep-report.json
+            trivy-report.json
+          if-no-files-found: ignore
